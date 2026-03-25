@@ -1,0 +1,683 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NutriTrack – Daily Nutrition Logger</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0c0f; --card: #161b22; --border: #21262d;
+    --accent: #39d353; --accent2: #58a6ff; --accent3: #f78166; --accent4: #e3b341;
+    --text: #e6edf3; --muted: #7d8590; --pill: #1f2937;
+  }
+  body { font-family: 'DM Mono', monospace; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(57,211,83,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(57,211,83,0.03) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .wrapper { position: relative; z-index: 1; max-width: 780px; margin: 0 auto; padding: 32px 16px 80px; }
+
+header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; gap: 16px; }
+.logo { font-family: ‘Syne’, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.logo span { color: var(–accent); }
+.logo-sub { font-size: 11px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+.date-badge { background: var(–card); border: 1px solid var(–border); border-radius: 8px; padding: 8px 14px; font-size: 11px; color: var(–muted); text-align: right; }
+.date-badge strong { display: block; color: var(–text); font-size: 13px; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(–card); border: 1px solid var(–border); border-radius: 12px; padding: 18px 20px; position: relative; overflow: hidden; }
+.stat-card::before { content: ‘’; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.stat-card.cal::before { background: linear-gradient(90deg, var(–accent3), var(–accent4)); }
+.stat-card.pro::before { background: linear-gradient(90deg, var(–accent2), var(–accent)); }
+.stat-label { font-size: 10px; color: var(–muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+.stat-value { font-family: ‘Syne’, sans-serif; font-size: 32px; font-weight: 800; line-height: 1; }
+.stat-value.cal { color: var(–accent4); }
+.stat-value.pro { color: var(–accent2); }
+.stat-meta { font-size: 11px; color: var(–muted); margin-top: 6px; }
+.stat-meta .remain { color: var(–accent); font-weight: 500; }
+.stat-meta .over { color: var(–accent3); font-weight: 500; }
+.progress-wrap { margin-top: 10px; height: 4px; background: var(–border); border-radius: 99px; overflow: hidden; }
+.progress-bar { height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
+.progress-bar.cal { background: linear-gradient(90deg, var(–accent3), var(–accent4)); }
+.progress-bar.pro { background: linear-gradient(90deg, var(–accent2), var(–accent)); }
+
+.targets-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+.target-pill { background: var(–pill); border: 1px solid var(–border); border-radius: 8px; padding: 10px 12px; font-size: 11px; color: var(–muted); text-align: center; }
+.target-pill strong { display: block; color: var(–text); font-size: 14px; font-family: ‘Syne’, sans-serif; margin-bottom: 2px; }
+
+.reco-card { background: var(–card); border: 2px solid var(–accent); border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; display: none; box-shadow: 0 0 16px rgba(57,211,83,0.15); }
+.reco-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(–accent); margin-bottom: 8px; font-weight: 700; }
+.reco-text { font-size: 13px; color: var(–text); line-height: 1.7; }
+.reco-text .hi { color: var(–accent); font-weight: 500; }
+
+/* Trend */
+.trend-card { background: var(–card); border: 1px solid var(–border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.trend-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.trend-title { font-family: ‘Syne’, sans-serif; font-size: 13px; font-weight: 700; color: var(–muted); text-transform: uppercase; letter-spacing: 1.5px; }
+.trend-legend { display: flex; gap: 14px; font-size: 10px; }
+.trend-legend span { display: flex; align-items: center; gap: 5px; color: var(–muted); }
+.trend-legend span::before { content: ‘’; display: inline-block; width: 10px; height: 3px; border-radius: 2px; }
+.trend-legend .l-cal::before { background: var(–accent4); }
+.trend-legend .l-pro::before { background: var(–accent2); }
+.trend-chart-wrap { position: relative; height: 140px; }
+canvas#trendCanvas { width: 100% !important; height: 140px !important; }
+.trend-empty { text-align: center; color: var(–muted); font-size: 12px; padding: 40px 0; }
+
+.input-section { background: var(–card); border: 1px solid var(–border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.input-section label { font-size: 11px; color: var(–muted); text-transform: uppercase; letter-spacing: 1.5px; display: block; margin-bottom: 10px; }
+textarea { width: 100%; background: var(–bg); border: 1px solid var(–border); border-radius: 8px; color: var(–text); font-family: ‘DM Mono’, monospace; font-size: 13px; padding: 12px 14px; resize: none; height: 80px; outline: none; transition: border-color 0.2s; line-height: 1.6; }
+textarea:focus { border-color: var(–accent); }
+textarea::placeholder { color: var(–muted); }
+.suggestions { font-size: 11px; color: var(–muted); margin-top: 8px; line-height: 1.9; }
+.suggestions .tag { background: var(–pill); color: var(–accent2); padding: 2px 6px; border-radius: 4px; margin: 2px; display: inline-block; cursor: pointer; transition: background 0.15s; }
+.suggestions .tag:hover { background: var(–border); }
+
+.matched-preview { margin-top: 12px; display: none; background: var(–bg); border: 1px solid var(–border); border-radius: 8px; padding: 10px 14px; }
+.matched-title { font-size: 10px; color: var(–accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.matched-item { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(–border); color: var(–text); }
+.matched-item:last-child { border: none; }
+.matched-macros { color: var(–muted); font-size: 11px; }
+.matched-total { display: flex; justify-content: space-between; font-size: 12px; padding-top: 8px; margin-top: 4px; font-weight: 600; color: var(–text); }
+
+.error-msg { background: rgba(247,129,102,0.1); border: 1px solid rgba(247,129,102,0.3); border-radius: 8px; padding: 10px 14px; color: var(–accent3); font-size: 12px; margin-top: 8px; }
+.info-msg { background: rgba(57,211,83,0.08); border: 1px solid rgba(57,211,83,0.2); border-radius: 8px; padding: 10px 14px; color: var(–accent); font-size: 12px; margin-top: 8px; display: none; }
+
+.btn-row { display: flex; gap: 8px; margin-top: 10px; }
+.btn { font-family: ‘DM Mono’, monospace; font-size: 12px; border: none; border-radius: 8px; padding: 10px 18px; cursor: pointer; transition: all 0.15s; font-weight: 500; }
+.btn-primary { background: var(–accent); color: #0a0c0f; flex: 1; }
+.btn-primary:hover { background: #4ae563; transform: translateY(-1px); }
+.btn-ghost { background: var(–border); color: var(–muted); }
+.btn-ghost:hover { background: var(–pill); color: var(–text); }
+
+.log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.log-title { font-family: ‘Syne’, sans-serif; font-size: 13px; font-weight: 700; color: var(–muted); text-transform: uppercase; letter-spacing: 1.5px; }
+.log-count { background: var(–pill); border-radius: 99px; font-size: 10px; padding: 2px 8px; color: var(–muted); }
+.log-entry { background: var(–card); border: 1px solid var(–border); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; animation: slideIn 0.3s ease; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.entry-food { font-size: 13px; color: var(–text); line-height: 1.5; }
+.entry-time { font-size: 10px; color: var(–muted); margin-top: 4px; }
+.entry-macros { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.macro-tag { font-size: 11px; padding: 3px 8px; border-radius: 5px; font-weight: 500; }
+.macro-tag.cal { background: rgba(227,179,65,0.15); color: var(–accent4); }
+.macro-tag.pro { background: rgba(88,166,255,0.15); color: var(–accent2); }
+.entry-del { background: none; border: none; color: var(–muted); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; transition: color 0.15s; align-self: center; }
+.entry-del:hover { color: var(–accent3); }
+.empty { text-align: center; padding: 40px 20px; color: var(–muted); font-size: 12px; border: 1px dashed var(–border); border-radius: 10px; }
+.empty-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.5; }
+</style>
+
+</head>
+<body>
+<div class="wrapper">
+  <header>
+    <div class="date-badge">
+      <strong id="dateStr">—</strong>
+      <span id="dayStr">—</span>
+    </div>
+    <div class="logo-sub" style="align-self:center">Daily Nutrition Logger · 51 kg</div>
+  </header>
+
+  <div class="stats-grid">
+    <div class="stat-card cal">
+      <div class="stat-label">Calories Consumed</div>
+      <div class="stat-value cal" id="calConsumed">0</div>
+      <div class="stat-meta">of <strong>1530</strong> kcal &nbsp;·&nbsp; <span id="calRemain" class="remain">1530 remaining</span></div>
+      <div class="progress-wrap"><div class="progress-bar cal" id="calBar" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card pro">
+      <div class="stat-label">Protein Consumed</div>
+      <div class="stat-value pro" id="proConsumed">0g</div>
+      <div class="stat-meta">of <strong>56g</strong> &nbsp;·&nbsp; <span id="proRemain" class="remain">56g remaining</span></div>
+      <div class="progress-wrap"><div class="progress-bar pro" id="proBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="targets-row">
+    <div class="target-pill"><strong>1530 kcal</strong>Daily Target</div>
+    <div class="target-pill"><strong>56g</strong>Protein Goal</div>
+    <div class="target-pill"><strong>51 kg</strong>Body Weight</div>
+  </div>
+
+  <div class="reco-card" id="recoCard">
+    <div class="reco-title">💡 Today's Recommendation</div>
+    <div class="reco-text" id="recoText"></div>
+  </div>
+
+  <div class="input-section">
+    <label>Log Food — describe naturally</label>
+    <textarea id="foodInput" placeholder="e.g. half bowl maggi, 2 boiled eggs, 1 cup dal, a banana, 1 roti..."></textarea>
+    <div class="suggestions">
+      Quick add:
+      <span class="tag" onclick="quickAdd('half bowl maggi')">half bowl maggi</span>
+      <span class="tag" onclick="quickAdd('2 boiled eggs')">2 boiled eggs</span>
+      <span class="tag" onclick="quickAdd('1 roti')">1 roti</span>
+      <span class="tag" onclick="quickAdd('1 cup dal')">1 cup dal</span>
+      <span class="tag" onclick="quickAdd('1 banana')">1 banana</span>
+      <span class="tag" onclick="quickAdd('100g chicken')">100g chicken</span>
+      <span class="tag" onclick="quickAdd('1 cup curd')">1 cup curd</span>
+      <span class="tag" onclick="quickAdd('half bowl rice')">half bowl rice</span>
+      <span class="tag" onclick="quickAdd('1 guava')">1 guava</span>
+      <span class="tag" onclick="quickAdd('almonds')">almonds</span>
+      <span class="tag" onclick="quickAdd('1 protein shake')">protein shake</span>
+    </div>
+    <div id="matchedPreview" class="matched-preview">
+      <div class="matched-title">✓ Detected Items</div>
+      <div id="matchedList"></div>
+      <div class="matched-total" id="matchedTotal"></div>
+    </div>
+    <div id="errorMsg" style="display:none" class="error-msg"></div>
+    <div id="infoMsg" class="info-msg"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="logFood()">+ Log Food</button>
+      <button class="btn btn-ghost" onclick="resetDay()">Reset Day</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="log-header">
+      <div class="log-title">Today's Log</div>
+      <div class="log-count" id="logCount">0 entries</div>
+    </div>
+    <div id="logList">
+      <div class="empty"><div class="empty-icon">🥗</div>No food logged yet.</div>
+    </div>
+  </div>
+
+  <!-- Trend Chart -->
+
+  <div class="trend-card" style="margin-top:20px">
+    <div class="trend-header">
+      <div class="trend-title">📈 7-Day Trend</div>
+      <div class="trend-legend">
+        <span class="l-cal">Calories</span>
+        <span class="l-pro">Protein</span>
+      </div>
+    </div>
+    <div class="trend-chart-wrap">
+      <canvas id="trendCanvas"></canvas>
+      <div class="trend-empty" id="trendEmpty" style="display:none">Log food over multiple days to see your trend.</div>
+    </div>
+  </div>
+
+  <!-- Month Chart -->
+
+  <div class="trend-card" style="margin-top:12px">
+    <div class="trend-header">
+      <div class="trend-title">📅 30-Day Trend</div>
+      <div class="trend-legend">
+        <span class="l-cal">Calories</span>
+        <span class="l-pro">Protein</span>
+      </div>
+    </div>
+    <div class="trend-chart-wrap">
+      <canvas id="monthCanvas"></canvas>
+      <div class="trend-empty" id="monthEmpty" style="display:none">Log food over multiple days to see your 30-day trend.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const CAL_TARGET = 1530, PRO_TARGET = 56;
+
+const DB = [
+  {n:['maggi','maggie','instant noodles','noodles'],cal:205,pro:5},
+  {n:['pasta','spaghetti','macaroni'],cal:220,pro:8},
+  {n:['rice','chawal','boiled rice','white rice','steamed rice'],cal:206,pro:4},
+  {n:['brown rice'],cal:185,pro:4.5},
+  {n:['roti','chapati','chapatti','phulka'],cal:80,pro:2.5,noHalf:true},
+  {n:['paratha','parantha'],cal:150,pro:3.5,noHalf:true},
+  {n:['bread','white bread'],cal:80,pro:3,noHalf:true},
+  {n:['brown bread','multigrain bread'],cal:70,pro:3.5,noHalf:true},
+  {n:['normal garlic bread','plain garlic bread','garlic bread'],cal:80,pro:2,noHalf:true},
+  {n:['cheese garlic bread','cheesy garlic bread'],cal:130,pro:4,noHalf:true},
+  {n:['dal','daal','lentils','toor dal','moong dal','masoor dal'],cal:150,pro:9},
+  {n:['rajma','kidney beans'],cal:180,pro:13},
+  {n:['chole','chana','chickpeas'],cal:200,pro:10},
+  {n:['paneer','cottage cheese'],cal:265,pro:18},
+  {n:['paneer curry','paneer sabzi','paneer masala','shahi paneer'],cal:220,pro:15},
+  {n:['sabzi','sabji','veg curry','mixed veg'],cal:120,pro:3},
+  {n:['egg','boiled egg','anda','fried egg','scrambled egg'],cal:78,pro:6,noHalf:true},
+  {n:['egg white'],cal:17,pro:4,noHalf:true},
+  {n:['omelette','omelet'],cal:150,pro:11,noHalf:true},
+  {n:['chicken','chicken breast','grilled chicken','boiled chicken'],cal:165,pro:31},
+  {n:['chicken curry','butter chicken','chicken masala'],cal:220,pro:25},
+  {n:['chicken biryani','biryani'],cal:350,pro:20,noHalf:true},
+  {n:['fish','fish curry','fish fry'],cal:200,pro:22},
+  {n:['milk','doodh'],cal:150,pro:8},
+  {n:['curd','dahi','yogurt'],cal:100,pro:7},
+  {n:['cheese slice','cheese'],cal:100,pro:6,noHalf:true},
+  {n:['elaichi banana','small banana','elaichi'],cal:55,pro:0.7,noHalf:true},
+  {n:['banana','kela'],cal:90,pro:1.1,noHalf:true},
+  {n:['apple','seb'],cal:80,pro:0.4,noHalf:true},
+  {n:['guava','amrood'],cal:55,pro:2.5,noHalf:true},
+  {n:['mango','aam'],cal:100,pro:1.4},
+  {n:['orange','santra'],cal:62,pro:1.2,noHalf:true},
+  {n:['samosa'],cal:262,pro:6,noHalf:true},
+  {n:['vada pav'],cal:290,pro:8,noHalf:true},
+  {n:['poha'],cal:250,pro:5},
+  {n:['upma'],cal:220,pro:6},
+  {n:['idli'],cal:40,pro:2,noHalf:true},
+  {n:['dosa'],cal:133,pro:4,noHalf:true},
+  {n:['puri','poori'],cal:110,pro:2.5,noHalf:true},
+  {n:['chai','tea','masala chai'],cal:60,pro:2,noHalf:true},
+  {n:['coffee','black coffee'],cal:5,pro:0.3,noHalf:true},
+  {n:['milk coffee','coffee with milk'],cal:80,pro:3.5,noHalf:true},
+  {n:['protein shake','whey shake'],cal:150,pro:25,noHalf:true},
+  {n:['khichdi'],cal:220,pro:8},
+  {n:['sandwich'],cal:280,pro:12,noHalf:true},
+  {n:['pizza'],cal:285,pro:12,noHalf:true},
+  {n:['burger'],cal:350,pro:15,noHalf:true},
+  {n:['oats','oatmeal'],cal:150,pro:5},
+  {n:['sprouts','moong sprouts'],cal:60,pro:5},
+  {n:['peanuts','groundnuts','moongfali'],cal:165,pro:7.5},
+  {n:['almonds','badam'],cal:170,pro:6},
+  {n:['cornflakes','cereal'],cal:130,pro:3,noHalf:true},
+];
+
+function parseFood(text) {
+  const t = text.toLowerCase();
+  const results = [];
+  const used = new Set();
+
+  // Sort DB so longer names match first (cheese garlic bread before garlic bread)
+  const sorted = [...DB].sort((a,b) => Math.max(...b.n.map(x=>x.length)) - Math.max(...a.n.map(x=>x.length)));
+
+  for (const item of sorted) {
+    for (const name of item.n) {
+      if (!t.includes(name)) continue;
+      if (used.has(item)) break;
+      used.add(item);
+
+      // Find quantity
+      let qty = 1;
+      const idx = t.indexOf(name);
+      const before = t.substring(Math.max(0, idx - 30), idx);
+
+      if (/half/.test(before) || t.substring(Math.max(0,idx-5),idx).includes('half')) {
+        qty = 0.5;
+      }
+      const numM = before.match(/(\d+\.?\d*)\s*(?:x\s*)?$/);
+      if (numM) qty = parseFloat(numM[1]);
+      if (/\btwo\b/.test(before)) qty = 2;
+      if (/\bthree\b/.test(before)) qty = 3;
+      if (/\bfour\b/.test(before)) qty = 4;
+
+      results.push({
+        displayName: name,
+        cal: Math.round(item.cal * qty),
+        pro: Math.round(item.pro * qty * 10) / 10,
+        qty
+      });
+      break;
+    }
+  }
+  return results;
+}
+
+// State
+let entries = JSON.parse(localStorage.getItem('nt_v4') || '[]');
+const todayKey = new Date().toDateString();
+if (localStorage.getItem('nt_day_v4') !== todayKey) {
+  entries = [];
+  localStorage.setItem('nt_day_v4', todayKey);
+}
+function save() {
+  localStorage.setItem('nt_v4', JSON.stringify(entries));
+  localStorage.setItem('nt_day_v4', new Date().toDateString());
+  saveTrend();
+}
+
+// ── Trend ─────────────────────────────────────────────────────────
+function saveTrend() {
+  const history = JSON.parse(localStorage.getItem('nt_history') || '{}');
+  const key = new Date().toDateString();
+  history[key] = { cal: totalCal(), pro: totalPro() };
+  // Keep only last 30 days
+  const keys = Object.keys(history).sort((a,b)=>new Date(a)-new Date(b));
+  if (keys.length > 30) keys.slice(0, keys.length-30).forEach(k => delete history[k]);
+  localStorage.setItem('nt_history', JSON.stringify(history));
+}
+
+function drawTrend() {
+  const history = JSON.parse(localStorage.getItem('nt_history') || '{}');
+  // Merge today's live data
+  const todayStr = new Date().toDateString();
+  history[todayStr] = { cal: totalCal(), pro: totalPro() };
+
+  const allKeys = Object.keys(history).sort((a,b)=>new Date(a)-new Date(b));
+  const last7 = allKeys.slice(-7);
+
+  const canvas = document.getElementById('trendCanvas');
+  const emptyEl = document.getElementById('trendEmpty');
+
+  if (last7.length < 1) {
+    canvas.style.display = 'none';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  emptyEl.style.display = 'none';
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.offsetWidth;
+  const H = 140;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const labels = last7.map(k => {
+    const d = new Date(k);
+    return d.toLocaleDateString('en-IN', { weekday:'short' }).slice(0,3);
+  });
+  const calVals = last7.map(k => history[k].cal);
+  const proVals = last7.map(k => history[k].pro);
+
+  const padL = 38, padR = 12, padT = 10, padB = 28;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const n = last7.length;
+
+  // Scales
+  const maxCal = Math.max(...calVals, CAL_TARGET, 200);
+  const maxPro = Math.max(...proVals, PRO_TARGET, 10);
+
+  function xPos(i) { return padL + (n === 1 ? chartW/2 : (i / (n-1)) * chartW); }
+  function yCalPos(v) { return padT + chartH - (v / maxCal) * chartH; }
+  function yProPos(v) { return padT + chartH - (v / maxPro) * chartH; }
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(33,38,45,0.8)';
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const y = padT + chartH * (1 - f);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+  });
+
+  // Target lines (dashed)
+  const targetCalY = yCalPos(CAL_TARGET);
+  ctx.setLineDash([4,4]);
+  ctx.strokeStyle = 'rgba(227,179,65,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, targetCalY); ctx.lineTo(W-padR, targetCalY); ctx.stroke();
+  const targetProY = yProPos(PRO_TARGET);
+  ctx.strokeStyle = 'rgba(88,166,255,0.3)';
+  ctx.beginPath(); ctx.moveTo(padL, targetProY); ctx.lineTo(W-padR, targetProY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw line with area fill
+  function drawLine(vals, yFn, color, fillColor) {
+    if (vals.length === 0) return;
+    // Fill
+    ctx.beginPath();
+    ctx.moveTo(xPos(0), padT + chartH);
+    vals.forEach((v,i) => ctx.lineTo(xPos(i), yFn(v)));
+    ctx.lineTo(xPos(vals.length-1), padT + chartH);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    // Line
+    ctx.beginPath();
+    vals.forEach((v,i) => i===0 ? ctx.moveTo(xPos(i),yFn(v)) : ctx.lineTo(xPos(i),yFn(v)));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    // Dots
+    vals.forEach((v,i) => {
+      ctx.beginPath();
+      ctx.arc(xPos(i), yFn(v), 3.5, 0, Math.PI*2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = '#0a0c0f';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  }
+
+  drawLine(calVals, yCalPos, '#e3b341', 'rgba(227,179,65,0.07)');
+  drawLine(proVals, yProPos, '#58a6ff', 'rgba(88,166,255,0.07)');
+
+  // Y-axis labels
+  ctx.fillStyle = '#7d8590';
+  ctx.font = `9px DM Mono, monospace`;
+  ctx.textAlign = 'right';
+  [0, 0.5, 1].forEach(f => {
+    const y = padT + chartH * (1 - f);
+    ctx.fillText(Math.round(maxCal * f), padL - 4, y + 3);
+  });
+
+  // X labels
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#7d8590';
+  labels.forEach((l, i) => {
+    const isToday = last7[i] === todayStr;
+    ctx.fillStyle = isToday ? '#39d353' : '#7d8590';
+    ctx.font = isToday ? `bold 9px DM Mono, monospace` : `9px DM Mono, monospace`;
+    ctx.fillText(l, xPos(i), H - 8);
+  });
+}
+
+function drawMonth() {
+  const history = JSON.parse(localStorage.getItem('nt_history') || '{}');
+  const todayStr = new Date().toDateString();
+  history[todayStr] = { cal: totalCal(), pro: totalPro() };
+
+  const allKeys = Object.keys(history).sort((a,b) => new Date(a) - new Date(b));
+  const last30 = allKeys.slice(-30);
+
+  const canvas = document.getElementById('monthCanvas');
+  const emptyEl = document.getElementById('monthEmpty');
+
+  if (last30.length < 2) {
+    canvas.style.display = 'none';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  emptyEl.style.display = 'none';
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.offsetWidth;
+  const H = 160;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const calVals = last30.map(k => history[k].cal);
+  const proVals = last30.map(k => history[k].pro);
+  const n = last30.length;
+
+  const padL = 38, padR = 12, padT = 10, padB = 28;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  const maxCal = Math.max(...calVals, CAL_TARGET, 200);
+  const maxPro = Math.max(...proVals, PRO_TARGET, 10);
+
+  function xPos(i) { return padL + (n === 1 ? chartW/2 : (i / (n-1)) * chartW); }
+  function yCalPos(v) { return padT + chartH - (v / maxCal) * chartH; }
+  function yProPos(v) { return padT + chartH - (v / maxPro) * chartH; }
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(33,38,45,0.8)';
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const y = padT + chartH * (1 - f);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+  });
+
+  // Target lines dashed
+  ctx.setLineDash([4,4]);
+  ctx.strokeStyle = 'rgba(227,179,65,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, yCalPos(CAL_TARGET)); ctx.lineTo(W-padR, yCalPos(CAL_TARGET)); ctx.stroke();
+  ctx.strokeStyle = 'rgba(88,166,255,0.3)';
+  ctx.beginPath(); ctx.moveTo(padL, yProPos(PRO_TARGET)); ctx.lineTo(W-padR, yProPos(PRO_TARGET)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw area + line (no dots for 30-day — too dense)
+  function drawArea(vals, yFn, color, fillColor) {
+    if (!vals.length) return;
+    ctx.beginPath();
+    ctx.moveTo(xPos(0), padT + chartH);
+    vals.forEach((v,i) => ctx.lineTo(xPos(i), yFn(v)));
+    ctx.lineTo(xPos(vals.length-1), padT + chartH);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+
+    ctx.beginPath();
+    vals.forEach((v,i) => i===0 ? ctx.moveTo(xPos(i),yFn(v)) : ctx.lineTo(xPos(i),yFn(v)));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  drawArea(calVals, yCalPos, '#e3b341', 'rgba(227,179,65,0.1)');
+  drawArea(proVals, yProPos, '#58a6ff', 'rgba(88,166,255,0.1)');
+
+  // Y-axis
+  ctx.fillStyle = '#7d8590';
+  ctx.font = `9px DM Mono, monospace`;
+  ctx.textAlign = 'right';
+  [0, 0.5, 1].forEach(f => {
+    const y = padT + chartH * (1 - f);
+    ctx.fillText(Math.round(maxCal * f), padL - 4, y + 3);
+  });
+
+  // X labels — show only every ~5 days to avoid clutter
+  ctx.textAlign = 'center';
+  const step = Math.ceil(n / 6);
+  last30.forEach((k, i) => {
+    if (i % step !== 0 && i !== n-1) return;
+    const d = new Date(k);
+    const label = d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+    const isToday = k === todayStr;
+    ctx.fillStyle = isToday ? '#39d353' : '#7d8590';
+    ctx.font = isToday ? `bold 9px DM Mono, monospace` : `9px DM Mono, monospace`;
+    ctx.fillText(label, xPos(i), H - 8);
+  });
+}
+
+// Date
+const now = new Date();
+document.getElementById('dateStr').textContent = now.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+document.getElementById('dayStr').textContent = now.toLocaleDateString('en-IN',{weekday:'long'});
+
+function totalCal() { return entries.reduce((s,e)=>s+e.cal,0); }
+function totalPro() { return entries.reduce((s,e)=>s+e.pro,0); }
+
+function updateUI() {
+  const cal = totalCal(), pro = totalPro();
+  document.getElementById('calConsumed').textContent = cal;
+  document.getElementById('proConsumed').textContent = pro + 'g';
+  document.getElementById('calBar').style.width = Math.min((cal/CAL_TARGET)*100,100)+'%';
+  document.getElementById('proBar').style.width = Math.min((pro/PRO_TARGET)*100,100)+'%';
+
+  const calLeft = CAL_TARGET - cal, proLeft = PRO_TARGET - pro;
+  const cEl = document.getElementById('calRemain');
+  cEl.textContent = calLeft>=0 ? calLeft+' remaining' : Math.abs(calLeft)+' over';
+  cEl.className = calLeft>=0 ? 'remain' : 'over';
+  const pEl = document.getElementById('proRemain');
+  pEl.textContent = proLeft>=0 ? proLeft+'g remaining' : Math.abs(proLeft)+'g over';
+  pEl.className = proLeft>=0 ? 'remain' : 'over';
+
+  document.getElementById('logCount').textContent = entries.length+' entr'+(entries.length===1?'y':'ies');
+  renderLog();
+  updateReco(calLeft, proLeft);
+  drawTrend();
+  drawMonth();
+}
+
+function updateReco(calLeft, proLeft) {
+  if (!entries.length) { document.getElementById('recoCard').style.display='none'; return; }
+  document.getElementById('recoCard').style.display='block';
+  let msg='';
+  if (calLeft>0&&proLeft>0) msg=`Need <span class="hi">${calLeft} kcal</span> and <span class="hi">${proLeft}g protein</span> more today. Try: dal-rice, 2 eggs, 100g paneer, or a glass of milk.`;
+  else if (calLeft<=0&&proLeft>0) msg=`Calories ✓ — but still <span class="hi">${proLeft}g short on protein</span>. Try: boiled eggs, curd, or a protein shake.`;
+  else if (calLeft>0&&proLeft<=0) msg=`Protein goal met ✓! <span class="hi">${calLeft} kcal</span> left — fill with fruits, oats, or nuts.`;
+  else msg=`<span class="hi">Both goals met today! 🎉</span> Excellent work. Stay hydrated.`;
+  document.getElementById('recoText').innerHTML = msg;
+}
+
+function renderLog() {
+  const c = document.getElementById('logList');
+  if (!entries.length) { c.innerHTML=`<div class="empty"><div class="empty-icon">🥗</div>No food logged yet.</div>`; return; }
+  c.innerHTML = entries.slice().reverse().map((e,ri)=>{
+    const i = entries.length-1-ri;
+    return `<div class="log-entry">
+      <div><div class="entry-food">${e.food}</div><div class="entry-time">${e.time}</div></div>
+      <div class="entry-macros">
+        <span class="macro-tag cal">${e.cal} kcal</span>
+        <span class="macro-tag pro">${e.pro}g</span>
+        <button class="entry-del" onclick="del(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function del(i) { entries.splice(i,1); save(); updateUI(); }
+function resetDay() { if(!confirm('Reset today?'))return; entries=[]; save(); updateUI(); document.getElementById('matchedPreview').style.display='none'; }
+
+function quickAdd(text) {
+  document.getElementById('foodInput').value = text;
+  logFood();
+}
+
+function logFood() {
+  const input = document.getElementById('foodInput').value.trim();
+  if (!input) return;
+  const errEl = document.getElementById('errorMsg');
+  const infoEl = document.getElementById('infoMsg');
+  errEl.style.display='none'; infoEl.style.display='none';
+
+  const matched = parseFood(input);
+  if (!matched.length) {
+    errEl.textContent = 'Items not recognised. Try simpler names like "dal", "roti", "egg", "banana", "maggi", "chicken". Use the quick-add tags above.';
+    errEl.style.display='block';
+    return;
+  }
+
+  const tCal = matched.reduce((s,m)=>s+m.cal,0);
+  const tPro = matched.reduce((s,m)=>s+m.pro,0);
+
+  // Show preview
+  const prev = document.getElementById('matchedPreview');
+  document.getElementById('matchedList').innerHTML = matched.map(m=>
+    `<div class="matched-item"><span>${m.qty!==1?m.qty+'× ':''}${m.displayName}</span><span class="matched-macros">${m.cal} kcal · ${m.pro}g protein</span></div>`
+  ).join('');
+  document.getElementById('matchedTotal').innerHTML = `<span>Total</span><span style="color:var(--accent4)">${tCal} kcal &nbsp;·&nbsp; <span style="color:var(--accent2)">${tPro}g protein</span></span>`;
+  prev.style.display='block';
+
+  entries.push({ food: input, cal: tCal, pro: tPro, time: new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) });
+  save(); updateUI();
+
+  infoEl.textContent = `✓ Logged: ${tCal} kcal, ${tPro}g protein`;
+  infoEl.style.display='block';
+  document.getElementById('foodInput').value='';
+  setTimeout(()=>{ infoEl.style.display='none'; prev.style.display='none'; }, 4000);
+}
+
+document.getElementById('foodInput').addEventListener('keydown', e => {
+  if (e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); logFood(); }
+});
+
+updateUI();
+</script>
+
+</body>
+</html>
